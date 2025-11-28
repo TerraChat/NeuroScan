@@ -90,75 +90,88 @@
     <div id="root"></div>
     
     <script>
+      // This script MUST execute before the React/Babel script below, and it must
+      // correctly expose window.analyzeScreenFrame.
+
       // Accessing the global variable exposed by the UMD script
-      const GoogleGenAI = window.GoogleGenAI.GoogleGenAI;
-      const Type = window.GoogleGenAI.Type;
+      const GoogleGenAI = window.GoogleGenAI ? window.GoogleGenAI.GoogleGenAI : undefined;
+      const Type = window.GoogleGenAI ? window.GoogleGenAI.Type : undefined;
 
-      // **WARNING: API KEY EMBEDDED DIRECTLY**
-      const apiKey = "AIzaSyCO3vw58VDZyHaIQ9yOMni5fepndQ29zJ4"; 
+      // Handle case where GoogleGenAI might not have loaded
+      if (!GoogleGenAI || !Type) {
+          console.error("Critical: Google GenAI SDK failed to load from CDN.");
+          // We still define a dummy function to prevent the React app from crashing immediately
+          window.analyzeScreenFrame = async () => {
+              console.error("Cannot analyze frame: Gemini SDK not available.");
+              return [];
+          };
+      } else {
+          // **WARNING: API KEY EMBEDDED DIRECTLY**
+          const apiKey = "AIzaSyCO3vw58VDZyHaIQ9yOMni5fepndQ29zJ4"; 
 
-      const ai = new GoogleGenAI({ apiKey });
+          const ai = new GoogleGenAI({ apiKey });
 
-      // Define the response schema
-      const scanResponseSchema = {
-        type: Type.OBJECT,
-        properties: {
-          foundQuestions: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                question: { type: Type.STRING, description: "The full text of the question found on the screen." },
-                answer: { type: Type.STRING, description: "A very brief, direct answer. No fluff. Max 1-2 sentences." },
-                category: { type: Type.STRING, description: "Category of the question (e.g., Math, History, Coding, Logic)." },
-                confidence: { type: Type.NUMBER, description: "Confidence score between 0 and 100." }
-              },
-              required: ["question", "answer", "category", "confidence"]
+          // Define the response schema
+          const scanResponseSchema = {
+            type: Type.OBJECT,
+            properties: {
+              foundQuestions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    question: { type: Type.STRING, description: "The full text of the question found on the screen." },
+                    answer: { type: Type.STRING, description: "A very brief, direct answer. No fluff. Max 1-2 sentences." },
+                    category: { type: Type.STRING, description: "Category of the question (e.g., Math, History, Coding, Logic)." },
+                    confidence: { type: Type.NUMBER, description: "Confidence score between 0 and 100." }
+                  },
+                  required: ["question", "answer", "category", "confidence"]
+                }
+              }
+            },
+            required: ["foundQuestions"]
+          };
+
+          /**
+           * Analyzes a base64 image string using the Gemini model.
+           */
+          const analyzeScreenFrame = async (base64Image) => {
+            if (!apiKey) {
+              console.error("API Key is missing");
+              return [];
             }
-          }
-        },
-        required: ["foundQuestions"]
-      };
 
-      /**
-       * Analyzes a base64 image string using the Gemini model.
-       */
-      const analyzeScreenFrame = async (base64Image) => {
-        if (!apiKey) {
-          console.error("API Key is missing");
-          return [];
-        }
+            try {
+              const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
 
-        try {
-          const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+              const response = await ai.models.generateContent({
+                model: "gemini-2.5-flash",
+                contents: [
+                  { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } },
+                  { text: "Analyze this screen capture. Identify any multiple choice questions, quiz questions, or technical queries visible. For each, provide the question text and the correct answer. Be extremely concise and factual. If no questions are clearly visible, return an empty array." }
+                ],
+                config: {
+                  responseMimeType: "application/json",
+                  responseSchema: scanResponseSchema,
+                  temperature: 0.1,
+                }
+              });
 
-          const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: [
-              { inlineData: { mimeType: "image/jpeg", data: cleanBase64 } },
-              { text: "Analyze this screen capture. Identify any multiple choice questions, quiz questions, or technical queries visible. For each, provide the question text and the correct answer. Be extremely concise and factual. If no questions are clearly visible, return an empty array." }
-            ],
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: scanResponseSchema,
-              temperature: 0.1,
+              const text = response.text;
+              if (!text) return [];
+
+              const data = JSON.parse(text);
+              return data.foundQuestions || [];
+
+            } catch (error) {
+              console.error("Error analyzing screen:", error);
+              return [];
             }
-          });
+          };
 
-          const text = response.text;
-          if (!text) return [];
-
-          const data = JSON.parse(text);
-          return data.foundQuestions || [];
-
-        } catch (error) {
-          console.error("Error analyzing screen:", error);
-          return [];
-        }
-      };
-
-      // Expose globally for the React component (which runs after this)
-      window.analyzeScreenFrame = analyzeScreenFrame;
+          // Expose globally for the React component
+          window.analyzeScreenFrame = analyzeScreenFrame;
+      }
     </script>
 
     <script type="text/babel">
