@@ -1,19 +1,19 @@
 // geminiService.js
 
-// Import the GoogleGenAI from a reliable CDN
-// NOTE: This MUST be the working CDN URL for the Google GenAI SDK
-import { GoogleGenAI, Type } from "https://cdn.jsdelivr.net/npm/@google/genai@^1.30.0/dist/index.js";
+// 1. Use a robust import alias for the Google GenAI SDK from a working CDN
+import * as GenAIModule from "https://cdn.jsdelivr.net/npm/@google/genai@^1.30.0/dist/index.js";
+
+const GoogleGenAI = GenAIModule.GoogleGenAI;
+const Type = GenAIModule.Type;
 
 // **WARNING: API KEY EMBEDDED DIRECTLY**
-// This key is publicly visible. This is a fix for your constraint of 
-// having only two static files, but is not recommended for security.
+// This is done to meet your constraint of using only two files.
 const apiKey = "AIzaSyCO3vw58VDZyHaIQ9yOMni5fepndQ29zJ4"; 
 
 // Initialize the client
 const ai = new GoogleGenAI({ apiKey });
 
-// Define the response schema
-// Using a JavaScript object literal equivalent of the TypeScript Schema
+// Define the response schema (Pure JavaScript object using the imported Type constants)
 const scanResponseSchema = {
   type: Type.OBJECT,
   properties: {
@@ -48,17 +48,14 @@ const scanResponseSchema = {
 
 /**
  * Analyzes a base64 image string using the Gemini model.
- * @param {string} base64Image - The base64 encoded image data.
- * @returns {Promise<Array<{question: string, answer: string, category: string, confidence: number}>>}
  */
-export const analyzeScreenFrame = async (base64Image) => {
+const analyzeScreenFrame = async (base64Image) => {
   if (!apiKey) {
     console.error("API Key is missing");
-    throw new Error("API Key is missing");
+    return [];
   }
 
   try {
-    // Remove data URL prefix if present (e.g., "data:image/png;base64,")
     const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
 
     const response = await ai.models.generateContent({
@@ -77,7 +74,7 @@ export const analyzeScreenFrame = async (base64Image) => {
       config: {
         responseMimeType: "application/json",
         responseSchema: scanResponseSchema,
-        temperature: 0.1, // Low temperature for factual accuracy
+        temperature: 0.1,
       }
     });
 
@@ -89,10 +86,9 @@ export const analyzeScreenFrame = async (base64Image) => {
 
   } catch (error) {
     console.error("Error analyzing screen:", error);
-    // Return empty array on error to keep app stable, but log it
     return [];
   }
 };
 
-// Expose the function globally so the React script (transpiled by Babel) can call it
+// 2. EXPOSE THE FUNCTION GLOBALLY so the React script (in index.html) can access it
 window.analyzeScreenFrame = analyzeScreenFrame;
