@@ -3,26 +3,21 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>NeuroScan - Real-time Visual Intelligence</title>
-    
+    <title>NeuroScan - Visual Intelligence</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
-    
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
-      // Tailwind CSS Config (Enhanced Sci-Fi Theme)
       tailwind.config = {
         theme: {
           extend: {
             fontFamily: {
-              sans: ['Space Grotesk', 'sans-serif'],
+              sans: ['Inter', 'sans-serif'],
               mono: ['JetBrains Mono', 'monospace'],
             },
             colors: {
               cyan: {
-                300: '#67e8f9',
                 400: '#22d3ee',
                 500: '#06b6d4',
-                700: '#0e7490',
                 900: '#164e63',
               },
               slate: {
@@ -34,15 +29,11 @@
             animation: {
               'scan-line': 'scan 2s linear infinite',
               'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-              'ping-slow': 'ping 3s cubic-bezier(0, 0, 0.2, 1) infinite',
             },
             keyframes: {
               scan: {
                 '0%': { transform: 'translateY(-100%)' },
                 '100%': { transform: 'translateY(100%)' },
-              },
-              ping: {
-                '75%, 100%': { transform: 'scale(2)', opacity: 0 }
               }
             }
           },
@@ -50,499 +41,30 @@
       }
     </script>
     <style>
-      /* Custom Styling for the Cyberpunk Look */
       body {
         background-color: #020617;
         color: #e2e8f0;
       }
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
+        width: 8px;
+        height: 8px;
       }
       ::-webkit-scrollbar-track {
         background: #0f172a; 
       }
       ::-webkit-scrollbar-thumb {
         background: #334155; 
-        border-radius: 3px;
+        border-radius: 4px;
       }
       ::-webkit-scrollbar-thumb:hover {
         background: #475569; 
       }
-      /* Scanner Line Keyframes */
-      .animate-scan-line {
-          animation: scan 2s linear infinite;
-      }
-      @keyframes scan {
-          0% { transform: translateY(-100%); }
-          100% { transform: translateY(100%); }
-      }
     </style>
-    
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  </head>
+  <link rel="stylesheet" href="/index.css">
+</head>
   <body>
     <div id="root"></div>
-    
-    <script type="module">
-      import { GoogleGenAI, Type } from "https://aistudiocdn.com/@google/genai@^1.30.0";
-
-      // **API KEY EMBEDDED DIRECTLY**: AIzaSyCO3vw58VDZyHaIQ9yOMni5fepndQ29zJ4
-      const apiKey = "AIzaSyCO3vw58VDZyHaIQ9yOMni5fepndQ29zJ4"; 
-      const ai = new GoogleGenAI({ apiKey });
-
-      // Define the response schema
-      const scanResponseSchema = {
-        type: Type.OBJECT,
-        properties: {
-          foundQuestions: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                question: { type: Type.STRING, description: "The full text of the question found on the screen." },
-                answer: { type: Type.STRING, description: "A very brief, direct answer. No fluff. Max 1-2 sentences." },
-                category: { type: Type.STRING, description: "Category of the question (e.g., Math, History, Coding, Logic)." },
-                confidence: { type: Type.NUMBER, description: "Confidence score between 0 and 100." }
-              },
-              required: ["question", "answer", "category", "confidence"]
-            }
-          }
-        },
-        required: ["foundQuestions"]
-      };
-
-      /**
-       * Analyzes a base64 image string using the Gemini model.
-       */
-      window.analyzeScreenFrame = async (base64Image) => {
-        if (!apiKey) {
-          console.error("API Key is missing");
-          return [];
-        }
-
-        try {
-          const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-
-          const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: [
-              {
-                inlineData: {
-                  mimeType: "image/jpeg",
-                  data: cleanBase64
-                }
-              },
-              {
-                text: "Analyze this screen capture. Identify any multiple choice questions, quiz questions, or technical queries visible. For each, provide the question text and the correct answer. Be extremely concise and factual. If no questions are clearly visible, return an empty array."
-              }
-            ],
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: scanResponseSchema,
-              temperature: 0.1,
-            }
-          });
-
-          const data = JSON.parse(response.text || '{}');
-          return data.foundQuestions || [];
-
-        } catch (error) {
-          console.error("Error analyzing screen:", error);
-          return [];
-        }
-      };
-    </script>
-
-    <script type="text/babel">
-      const { useState, useRef, useEffect, useCallback } = React;
-      const rootElement = document.getElementById('root');
-      
-      if (!rootElement) throw new Error("Could not find root element to mount to");
-
-      // --- Constants/Enums ---
-      const ScanStatus = {
-        IDLE: 'IDLE',
-        STREAMING: 'STREAMING',
-        ANALYZING: 'ANALYZING',
-        ERROR: 'ERROR'
-      };
-      const generateId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      const MIN_SCAN_INTERVAL_MS = 3000;
-
-      // --- Component: Button ---
-      const Button = ({ onClick, children, variant = 'primary', icon, className = '', disabled = false }) => {
-        const baseStyles = "inline-flex items-center justify-center gap-2 px-4 py-2 font-semibold transition-all duration-200 rounded-lg text-sm tracking-wider disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.01]";
-        
-        let variantStyles = "";
-        if (variant === 'primary') {
-          variantStyles = "bg-cyan-500 text-slate-900 hover:bg-cyan-400 shadow-lg shadow-cyan-500/30 border border-cyan-400";
-        } else if (variant === 'secondary') {
-          variantStyles = "bg-slate-800 text-cyan-300 border border-cyan-700/50 hover:bg-slate-700/70 hover:text-cyan-400";
-        } else if (variant === 'danger') {
-          variantStyles = "bg-red-600 text-white hover:bg-red-500 shadow-lg shadow-red-600/30 border border-red-500";
-        } else if (variant === 'ghost') {
-          variantStyles = "text-slate-400 hover:text-cyan-400 hover:bg-slate-800/50 border border-transparent";
-        }
-
-        return (
-          <button 
-            onClick={onClick}
-            className={`${baseStyles} ${variantStyles} ${className}`}
-            disabled={disabled}
-          >
-            {icon && <span className="w-4 h-4">{icon}</span>}
-            {children}
-          </button>
-        );
-      };
-
-      // --- Component: ScannerOverlay (Enhanced Look) ---
-      const ScannerOverlay = () => (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          {/* Scanning Line */}
-          <div className="absolute inset-x-0 h-1 bg-cyan-400/70 shadow-2xl shadow-cyan-500/50 animate-scan-line"></div>
-          {/* Border Guide */}
-          <div className="absolute inset-0 border-4 border-cyan-500/30 rounded-2xl transition-colors duration-500 backdrop-blur-[1px] opacity-70"></div>
-          {/* Corner Highlights */}
-          <div className="absolute top-0 left-0 w-10 h-10 border-t-2 border-l-2 border-cyan-300/80"></div>
-          <div className="absolute top-0 right-0 w-10 h-10 border-t-2 border-r-2 border-cyan-300/80"></div>
-          <div className="absolute bottom-0 left-0 w-10 h-10 border-b-2 border-l-2 border-cyan-300/80"></div>
-          <div className="absolute bottom-0 right-0 w-10 h-10 border-b-2 border-r-2 border-cyan-300/80"></div>
-        </div>
-      );
-
-      // --- Component: ResultCard (Enhanced Look) ---
-      const ResultCard = ({ entry }) => {
-        const { question, answer, category, confidence, timestamp } = entry;
-        const confidenceColor = confidence > 80 ? 'text-emerald-400' : confidence > 50 ? 'text-amber-400' : 'text-red-400';
-        const formattedTime = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
-        return (
-          <div className="bg-slate-900 border border-slate-700/50 rounded-xl p-5 transition-all duration-300 hover:shadow-xl hover:shadow-cyan-500/5 hover:border-cyan-700/50">
-            <div className="flex justify-between items-start mb-3 border-b border-slate-800 pb-2">
-              <span className="text-xs font-mono text-cyan-300 uppercase tracking-widest bg-cyan-700/30 px-3 py-1 rounded-full border border-cyan-700/80 shadow-inner">{category}</span>
-              <div className="text-xs text-slate-400 font-mono flex items-center gap-3">
-                <span className={`font-bold ${confidenceColor}`}>{confidence}% CONF.</span>
-                <span className="text-slate-500">{formattedTime}</span>
-              </div>
-            </div>
-            
-            <p className="font-bold text-slate-50 mb-3 text-lg leading-snug">
-                Q: <span className="text-cyan-400">{question}</span>
-            </p>
-            <div className="p-4 bg-slate-850 rounded-lg border-l-4 border-cyan-500/80 shadow-inner">
-              <p className="text-sm text-slate-300 font-mono leading-relaxed">
-                  A: {answer}
-              </p>
-            </div>
-          </div>
-        );
-      };
-
-      // --- App Component ---
-      const App = () => {
-        const [status, setStatus] = useState(ScanStatus.IDLE);
-        const [config, setConfig] = useState({ autoScan: false, scanInterval: 5 });
-        const [logs, setLogs] = useState([]);
-        const [lastScanTime, setLastScanTime] = useState(0);
-        const [streamError, setStreamError] = useState(null);
-
-        const videoRef = useRef(null);
-        const canvasRef = useRef(null);
-        const streamRef = useRef(null);
-        const logsEndRef = useRef(null);
-
-        useEffect(() => {
-          return () => { stopCapture(); };
-        }, []);
-
-        useEffect(() => {
-          logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, [logs]);
-
-        const stopCapture = () => {
-          if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => track.stop());
-            streamRef.current = null;
-          }
-          if (videoRef.current) {
-            videoRef.current.srcObject = null;
-          }
-          setStatus(ScanStatus.IDLE);
-        };
-
-        const startCapture = async () => {
-          try {
-            setStreamError(null);
-            // Check for global analyzeScreenFrame function availability
-            if (typeof window.analyzeScreenFrame !== 'function') {
-                console.error("Gemini Service not loaded.");
-                setStreamError("API Service not loaded. Check browser console for module errors.");
-                setStatus(ScanStatus.ERROR);
-                return;
-            }
-
-            const mediaStream = await navigator.mediaDevices.getDisplayMedia({
-              video: { displaySurface: 'browser' },
-              audio: false,
-            });
-
-            streamRef.current = mediaStream;
-
-            if (videoRef.current) {
-              videoRef.current.srcObject = mediaStream;
-              videoRef.current.play();
-            }
-
-            setStatus(ScanStatus.STREAMING);
-
-            // Handle stream stop 
-            mediaStream.getVideoTracks()[0].onended = stopCapture;
-
-          } catch (err) {
-            console.error("Error starting capture:", err);
-            setStreamError("Failed to share screen. Permission denied or cancelled.");
-            setStatus(ScanStatus.ERROR);
-          }
-        };
-
-        const captureAndAnalyze = useCallback(async () => {
-          const analyzeFn = window.analyzeScreenFrame;
-
-          if (!videoRef.current || !canvasRef.current || status !== ScanStatus.STREAMING || !analyzeFn) return;
-
-          const now = Date.now();
-          if (now - lastScanTime < MIN_SCAN_INTERVAL_MS) return;
-
-          setStatus(ScanStatus.ANALYZING);
-          setLastScanTime(now);
-
-          try {
-            // Draw video frame to canvas
-            const video = videoRef.current;
-            const canvas = canvasRef.current;
-            const ctx = canvas.getContext('2d');
-            
-            if (!ctx) return;
-
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            // Get Base64
-            const base64Image = canvas.toDataURL('image/jpeg', 0.6);
-
-            // Send to Gemini
-            const results = await analyzeFn(base64Image);
-
-            if (results && results.length > 0) {
-              const newLogs = results.map(r => ({
-                ...r,
-                id: generateId(),
-                timestamp: Date.now()
-              }));
-
-              setLogs(prev => {
-                // Deduplication: Only add if question is new compared to the last few entries
-                const recentLogs = prev.slice(-5); 
-                const filteredNew = newLogs.filter(newLog => 
-                  !recentLogs.some(existing => existing.question === newLog.question)
-                );
-                return [...prev, ...filteredNew];
-              });
-            }
-          } catch (error) {
-            console.error("Scan failed:", error);
-          } finally {
-            if (streamRef.current) {
-              setStatus(ScanStatus.STREAMING);
-            }
-          }
-        }, [lastScanTime, status]);
-
-        // Loop for auto-scan
-        useEffect(() => {
-          let intervalId;
-
-          if (config.autoScan && status === ScanStatus.STREAMING) {
-            intervalId = setInterval(() => {
-              if (status !== ScanStatus.ANALYZING) {
-                 captureAndAnalyze();
-              }
-            }, config.scanInterval * 1000);
-          }
-
-          return () => {
-            if (intervalId) clearInterval(intervalId);
-          };
-        }, [config.autoScan, config.scanInterval, status, captureAndAnalyze]);
-
-        return (
-          <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30">
-            
-            {/* Header */}
-            <header className="border-b border-cyan-900/50 bg-slate-950/90 backdrop-blur-md sticky top-0 z-50 shadow-lg shadow-cyan-900/10">
-              <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="relative flex items-center justify-center w-10 h-10 rounded-full bg-cyan-700/50 border border-cyan-400/20">
-                    <div className="absolute w-full h-full rounded-full bg-cyan-400/10 animate-ping-slow"></div>
-                    <svg className="w-5 h-5 text-cyan-300" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                  </div>
-                  <h1 className="text-3xl font-bold tracking-tight text-slate-50">
-                    NEURO<span className="text-cyan-400">SCAN</span>
-                  </h1>
-                </div>
-
-                <div className="flex items-center gap-6">
-                  {status !== ScanStatus.IDLE && status !== ScanStatus.ERROR && (
-                      <div className="flex items-center gap-3 bg-slate-900 px-4 py-2 rounded-xl border border-cyan-700/50">
-                        <label className="flex items-center gap-3 text-sm text-cyan-300 font-mono cursor-pointer">
-                          <input 
-                            type="checkbox"
-                            checked={config.autoScan}
-                            onChange={(e) => setConfig(prev => ({ ...prev, autoScan: e.target.checked }))}
-                            className="w-5 h-5 rounded-md border-cyan-500 text-cyan-500 focus:ring-cyan-500 bg-slate-800"
-                          />
-                          <span>AUTO_SCAN: {config.scanInterval}s</span>
-                        </label>
-                      </div>
-                  )}
-
-                  <Button 
-                    onClick={status === ScanStatus.IDLE || status === ScanStatus.ERROR ? startCapture : stopCapture}
-                    variant={status === ScanStatus.IDLE || status === ScanStatus.ERROR ? 'primary' : 'danger'}
-                    icon={
-                      status === ScanStatus.IDLE || status === ScanStatus.ERROR 
-                      ? <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.55 4.55a.5.5 0 010 .7L15 20m-6-10L4.45 4.75a.5.5 0 010-.7L9 0m0 20l4.55-4.55a.5.5 0 000-.7L9 10m6 10l-4.55-4.55a.5.5 0 000-.7L15 10"/></svg>
-                      : <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v10h-2V7z"/></svg>
-                    }
-                  >
-                    {status === ScanStatus.IDLE || status === ScanStatus.ERROR ? 'INITIATE SCREEN SHARE' : 'TERMINATE SCAN'}
-                  </Button>
-                </div>
-              </div>
-            </header>
-
-            {/* Main Content */}
-            <main className="flex-1 max-w-7xl mx-auto w-full p-6 gap-8 grid grid-cols-1 lg:grid-cols-12 h-full overflow-hidden">
-              
-              {/* Left Col: Video Feed & Controls */}
-              <div className="lg:col-span-8 flex flex-col gap-6 h-full">
-                <div className="relative flex-1 bg-black rounded-2xl border border-slate-700 overflow-hidden shadow-2xl shadow-cyan-900/20 flex items-center justify-center group min-h-[400px]">
-                  
-                  {/* Status Indicator */}
-                  <div className={`absolute top-5 right-5 z-20 px-3 py-1.5 rounded-full text-xs font-bold tracking-widest border backdrop-blur-sm transition-colors duration-300 font-mono ${
-                    status === ScanStatus.ANALYZING ? 'bg-amber-500/30 text-amber-300 border-amber-500/40' :
-                    status === ScanStatus.STREAMING ? 'bg-emerald-500/30 text-emerald-300 border-emerald-500/40' :
-                    status === ScanStatus.ERROR ? 'bg-red-500/30 text-red-300 border-red-500/40' :
-                    'bg-slate-800/50 text-slate-400 border-slate-700/50'
-                  }`}>
-                    {status === ScanStatus.ANALYZING ? '● PROCESSING' : 
-                    status === ScanStatus.STREAMING ? '● ACTIVE MONITOR' : 
-                    status === ScanStatus.ERROR ? '● CRITICAL ERROR' : 
-                    '○ OFFLINE'}
-                  </div>
-
-                  {/* Video Element */}
-                  <video 
-                    ref={videoRef}
-                    autoPlay 
-                    playsInline 
-                    muted
-                    className={`w-full h-full object-contain transition-opacity duration-500 ${status === ScanStatus.IDLE ? 'opacity-0' : 'opacity-100'}`}
-                  />
-                  
-                  {/* Overlay */}
-                  {(status === ScanStatus.STREAMING || status === ScanStatus.ANALYZING) && <ScannerOverlay />}
-
-                  {/* Idle State / Placeholder */}
-                  {status === ScanStatus.IDLE && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 p-8 text-center bg-slate-900/50">
-                      <div className="w-16 h-16 mb-6 rounded-full border-2 border-cyan-700/50 flex items-center justify-center bg-slate-850 shadow-inner shadow-cyan-900/30">
-                        <svg className="w-8 h-8 text-cyan-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                      <h2 className="text-2xl font-bold text-slate-300 mb-2">SYSTEM STANDBY</h2>
-                      <p className="max-w-md text-slate-400 font-mono text-sm">Initiate scan sequence to activate visual intelligence monitoring of your screen feed.</p>
-                    </div>
-                  )}
-                  
-                  {/* Error State */}
-                  {status === ScanStatus.ERROR && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-red-300 p-8 text-center bg-red-950/20 border border-red-500/30 rounded-2xl">
-                      <svg className="w-10 h-10 mb-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
-                      <p className="font-mono text-lg font-bold">{streamError || "SIGNAL LOST / API ERROR"}</p>
-                      <Button variant="ghost" className="mt-6 border-red-500/30 text-red-400 hover:bg-red-900/20" onClick={() => setStatus(ScanStatus.IDLE)}>Retry Connection</Button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Manual Control Bar */}
-                <div className="h-16 bg-slate-900 border border-slate-700/50 rounded-xl flex items-center justify-between px-6 shadow-md">
-                  <div className="flex items-center gap-6 text-sm text-cyan-500 font-mono tracking-wide">
-                      <span className="text-slate-400">LOG_COUNT: <span className="text-cyan-400">{logs.length}</span></span>
-                      <span className="text-slate-400">API_STATUS: <span className={status === ScanStatus.ANALYZING ? 'text-amber-400 animate-pulse' : 'text-emerald-400'}>{status === ScanStatus.ANALYZING ? 'ACTIVE' : 'IDLE'}</span></span>
-                  </div>
-                  
-                  <Button 
-                    disabled={status !== ScanStatus.STREAMING || config.autoScan}
-                    onClick={captureAndAnalyze}
-                    variant="secondary"
-                    className="w-full max-w-[200px]"
-                    icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.55 4.55a.5.5 0 010 .7L15 20m-6-10L4.45 4.75a.5.5 0 010-.7L9 0m0 20l4.55-4.55a.5.5 0 000-.7L9 10m6 10l-4.55-4.55a.5.5 0 000-.7L15 10"/></svg>}
-                  >
-                    SCAN FRAME NOW
-                  </Button>
-                </div>
-              </div>
-
-              {/* Right Col: Analysis Log */}
-              <div className="lg:col-span-4 flex flex-col h-full bg-slate-900 rounded-2xl border border-slate-700 shadow-xl overflow-hidden">
-                <div className="p-4 border-b border-slate-700 bg-slate-850 flex justify-between items-center shadow-inner">
-                  <h2 className="font-bold text-xl text-cyan-300 tracking-wider flex items-center gap-3">
-                    <svg className="w-5 h-5 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                    </svg>
-                    INTELLIGENCE LOG
-                  </h2>
-                  <Button
-                    onClick={() => setLogs([])}
-                    variant="ghost"
-                    className="text-xs text-slate-500 hover:text-red-400 uppercase font-bold border-transparent px-2 py-1"
-                  >
-                    Clear Log
-                  </Button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {logs.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-600 space-y-3 opacity-70">
-                      <div className="w-14 h-14 border-4 border-dashed border-cyan-700 rounded-full animate-pulse-slow"></div>
-                      <p className="text-sm font-mono tracking-widest text-slate-500">AWAITING SCAN RESULTS...</p>
-                    </div>
-                  ) : (
-                    logs.map((log) => (
-                      <ResultCard key={log.id} entry={log} />
-                    ))
-                  )}
-                  <div ref={logsEndRef} />
-                </div>
-              </div>
-            </main>
-
-            {/* Hidden Canvas for Processing */}
-            <canvas ref={canvasRef} className="hidden" />
-          </div>
-        );
-      };
-
-      // Initial Mount
-      ReactDOM.createRoot(rootElement).render(<App />);
-    </script>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>
