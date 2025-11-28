@@ -1,15 +1,20 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { QuestionResult } from "../types";
+// geminiService.js
 
-// FIX: Hardcoded the key to ensure the API service loads. 
-// NOTE: This is insecure. For production, use an environment file (.env).
-const apiKey = "AIzaSyCO3vw58VDZyHaIQ9yOMni5fepndQ29zJ4";
+// Import the GoogleGenAI from a reliable CDN
+// NOTE: This MUST be the working CDN URL for the Google GenAI SDK
+import { GoogleGenAI, Type } from "https://cdn.jsdelivr.net/npm/@google/genai@^1.30.0/dist/index.js";
+
+// **WARNING: API KEY EMBEDDED DIRECTLY**
+// This key is publicly visible. This is a fix for your constraint of 
+// having only two static files, but is not recommended for security.
+const apiKey = "AIzaSyCO3vw58VDZyHaIQ9yOMni5fepndQ29zJ4"; 
 
 // Initialize the client
 const ai = new GoogleGenAI({ apiKey });
 
 // Define the response schema
-const scanResponseSchema: Schema = {
+// Using a JavaScript object literal equivalent of the TypeScript Schema
+const scanResponseSchema = {
   type: Type.OBJECT,
   properties: {
     foundQuestions: {
@@ -41,7 +46,12 @@ const scanResponseSchema: Schema = {
   required: ["foundQuestions"]
 };
 
-export const analyzeScreenFrame = async (base64Image: string): Promise<QuestionResult[]> => {
+/**
+ * Analyzes a base64 image string using the Gemini model.
+ * @param {string} base64Image - The base64 encoded image data.
+ * @returns {Promise<Array<{question: string, answer: string, category: string, confidence: number}>>}
+ */
+export const analyzeScreenFrame = async (base64Image) => {
   if (!apiKey) {
     console.error("API Key is missing");
     throw new Error("API Key is missing");
@@ -53,19 +63,17 @@ export const analyzeScreenFrame = async (base64Image: string): Promise<QuestionR
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: "image/jpeg",
-              data: cleanBase64
-            }
-          },
-          {
-            text: "Analyze this screen capture. Identify any multiple choice questions, quiz questions, or technical queries visible. For each, provide the question text and the correct answer. Be extremely concise. If no questions are clearly visible, return an empty array."
+      contents: [
+        {
+          inlineData: {
+            mimeType: "image/jpeg",
+            data: cleanBase64
           }
-        ]
-      },
+        },
+        {
+          text: "Analyze this screen capture. Identify any multiple choice questions, quiz questions, or technical queries visible. For each, provide the question text and the correct answer. Be extremely concise and factual. If no questions are clearly visible, return an empty array."
+        }
+      ],
       config: {
         responseMimeType: "application/json",
         responseSchema: scanResponseSchema,
@@ -85,3 +93,6 @@ export const analyzeScreenFrame = async (base64Image: string): Promise<QuestionR
     return [];
   }
 };
+
+// Expose the function globally so the React script (transpiled by Babel) can call it
+window.analyzeScreenFrame = analyzeScreenFrame;
